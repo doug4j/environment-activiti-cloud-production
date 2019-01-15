@@ -29,3 +29,95 @@ jenkins:
         DOCKER_REGISTRY: 827620312859.dkr.ecr.us-west-2.amazonaws.com
         TILLER_NAMESPACE: kube-system
 prow: {}
+
+# Default values for activiti-cloud-full-example.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+global:
+  keycloak:
+    url: "http://activiti-keycloak.jx-production.doug4j.com/auth"
+  gateway:
+    host: &gatewayhost "activiti-cloud-gateway.jx-production.doug4j.com"    
+
+activiti-cloud-modeling:
+  enabled: true
+  ingress:
+    enabled: true
+    hostName: *gatewayhost
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      nginx.ingress.kubernetes.io/rewrite-target: /
+      nginx.ingress.kubernetes.io/enable-cors: true
+      nginx.ingress.kubernetes.io/cors-allow-headers: "*"
+      nginx.ingress.kubernetes.io/x-forwarded-prefix: true
+  frontend:
+    image:
+      pullPolicy: IfNotPresent  
+  backend:
+    image:
+      pullPolicy: IfNotPresent  
+
+infrastructure:
+  activiti-keycloak:
+    keycloak:
+      enabled: true
+      keycloak:
+        username: admin
+        password: admin
+        persistence:
+          deployPostgres: false
+          dbVendor: H2
+        ingress:
+          enabled: true
+          path: /
+          proxyBufferSize: "16k"
+          hosts:
+            - "activiti-keycloak.jx-production.doug4j.com"
+          annotations:
+            kubernetes.io/ingress.class: nginx
+            nginx.ingress.kubernetes.io/rewrite-target: /
+            nginx.ingress.kubernetes.io/configuration-snippet: |
+              more_set_headers 'Access-Control-Allow-Methods: "POST, GET, OPTIONS, PUT, PATCH, DELETE"';
+              more_set_headers 'Access-Control-Allow-Credentials: true';
+              more_set_headers 'Access-Control-Allow-Headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,authorization"';
+              more_set_headers 'Access-Control-Allow-Origin: $http_origin';
+            nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+        preStartScript: |
+          /opt/jboss/keycloak/bin/add-user.sh -u admin -p admin
+          /opt/jboss/keycloak/bin/add-user-keycloak.sh -r master -u admin -p admin
+          cp /realm/activiti-realm.json .
+          sed -i 's/placeholder.com/*/g' activiti-realm.json
+          
+  activiti-cloud-gateway:
+    ingress:
+      enabled: true
+      hostName: *gatewayhost
+      annotations:
+        kubernetes.io/ingress.class: nginx
+
+application:
+  runtime-bundle:
+    enabled: true
+    db:
+      deployPostgres: true
+    image:
+      pullPolicy: IfNotPresent
+
+  activiti-cloud-query:
+    db:
+      deployPostgres: true
+    image:
+      pullPolicy: IfNotPresent
+
+  activiti-cloud-connector:
+    enabled: true
+    image:
+      pullPolicy: IfNotPresent
+
+  activiti-cloud-audit:
+    db:
+      deployPostgres: true
+    image:
+      pullPolicy: IfNotPresent
